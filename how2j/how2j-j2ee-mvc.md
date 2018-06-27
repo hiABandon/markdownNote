@@ -58,3 +58,43 @@ public class HeroEditServlet extends HttpServlet {
 - V 视图 （View） 视图就是网页,JSP用来展示模型中的数据
 - C 控制器 (Controller) 控制器就是把不同的数据（Model）显示在不同的视图(view)上
   - 上述例子中，Servlet就是充当控制器的角色，把hero对象显示在jsp上
+
+#### 结合Servlet和JSP 实现查询功能
+略
+
+#### 结合Servlet和JSP 实现分页功能
+略
+
+#### 用户是否登录
+- 有些功能需要用户登陆过才能使用。
+- 使用**session**来实现这个功能。
+- 在处理登录的loginServlet中将用户名保存在session中。
+- 在HeroListServlet中查看session中是否为空。如果为空，就表示用户没有登录过，就跳转到登录页面
+
+- 在LoginServlet中吧验证成功的用户加入到Session
+```java
+public class LoginServlet extends HttpServlet {
+  private static final long serialVersionUID = 1L;
+
+  protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+    String name = request.getParameter("name");
+    String password = request.getParameter("password");
+
+    if("admin".equals(name) && "123".equals(password)) {
+      request.getSession().setAttribute('userName', name);
+      response.sendRedirect("listHero");
+    } else {
+      response.sendRedirect("login.html");
+    }
+  }
+}
+```
+
+- 在HeroListServlet判断Session中是否有数据
+```java
+String userName = (String) request.getSession().getAttribute("userName");
+   if (null == userName) {
+   response.sendRedirect("login.html");
+   return;
+}
+```
