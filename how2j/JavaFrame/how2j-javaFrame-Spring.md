@@ -290,7 +290,17 @@ public class Product {
 为Proudct类加上`@Component`注解，表明此类是bean
 ```java
 @component
-public class Product {}
+public class Product {
+  private int id;
+  private String name="product 1";
+
+  @Autowired
+  private Category category;
+
+  public int getId() { return id; }
+
+  public void setId() { return id; }
+}
 ```
 
 为Category加上@Component注解，即表明此类是bean
@@ -304,3 +314,153 @@ public class Category{}
 private String name="product 1";
 private String name="category 1";
 ```
+
+#### 2. 运行测试类，发现结果都一样
+
+- 小结：
+  - 用于注入**属性**的注解
+    - **@Autowired**
+      - 默认按照**类型方式**进行bean匹配
+      - 是Spring的注解
+    - **@Resource**
+      - `@Resource(name="c")`或`@Resource`
+      - 默认按照**名称方式**进行bean匹配
+      - (import javax.annotation.Resource)
+    - 添加`<context:annotation-config/>`
+  - 用于对**Bean**进行注解配置
+    - 添加`<context:component-scan base-package="com.how2java.pojo"/>`
+    - **@Component("beanId")**
+
+AOP Aspect Oriented Program 面向切面编程
+---
+- 在面向切面编程的思想里，把功能分为**核心业务功能**和**周边功能**
+  - 所谓核心业务：
+    - 登录、增加数据、删除数据
+  - 所谓周边功能：
+    - 性能统计、日志、事物管理
+- 周边功能在Spring的面向切面编程AOP思想里，即被定义为**切面**
+
+在面向切面编程AOP思想里，和兴业务功能和切面功能分别**独立进行开发**然后把切面功能和核心业务功能**编制**在一起，这就叫AOP
+
+- 再来些废话
+  - 功能分两大类，辅助功能和核心业务功能
+  - 粗朱功能和核心业务功能**彼此独立**进行开发
+  - 例如登陆功能，即使没有新能统计和日志输出，也可以正常运行
+  - 如果有需要，就把"日志输出"功能和"登陆"功能**编织**在一起，这样登陆的时候，就可以看到日志输出了。
+  - 辅助功能，又叫做**切面**，这种能够**选择性的，低耦合的**把切面和核心业务功能结合在一起的编程思想，就叫做切面。
+
+### xml方式配置AOP
+- 业务类
+```java
+public class ProductService() {
+  public void doSomeService() {
+    System.out.print("doSomeService");
+  }
+}
+```
+- 切面类
+```java
+public class LoggerAspect {
+  public Object log(ProceedingJoinPoint joinPoint) throws Throwable {
+    System.out.print("start log:" + joinPoint.getSignature().getName());
+    Object object = joniPoint.proceed();
+    System.out.print("end log" + joinPoint.getSignature().getName());
+  }
+}
+```
+- xml配置
+```xml
+<bean id="productService" class="xxxxxxxx">
+<bean id="LoggerAspect" class="xxxxxxxx">
+
+<aop:config>
+  <aop:pointcut id="loggerCutpoint"
+    expression="execution(* com.spring.xml.service.ProductService.*(..))" />
+    <!-- 定义切入点方法 -->
+    <!-- execution[执行]*[任意返回类型]com.spring....ProductService[这个包下].*(..)[任意参数的方法] -->
+    <!-- 也就是说execution句意思是执行的是com..ProductService包下任意方法 -->
+  <aop:aspect id="logAspect" ref="loggerAspect">
+    <!-- 定义切面 -->
+    <aop:around pointcut-rec="loggerCutpoint" method="log" />
+    <!-- 指定切入点方法 -->
+  </aop:aspect>
+</aop:config>
+```
+### 注解方式配置AOP
+- @Aspect注解表示这是一个切面
+- @Component注解表示这是一个bean，由Spring进行管理
+- @Around(value="execution(* com.how2java.service.ProductService).* ")
+  - 表示对com.how2java.service.ProductService这个类中的所有的方法进行切面操作
+
+```java
+package com.how2java.aspect;
+
+@Aspect
+@Component
+public class LoggerAspect {
+  @Around(value = "execution(* com.how2java.service.ProductService.*(..))")
+  public Object log(ProceedingJoinPoint joinPoint) throws Throwable {
+    System.out.print("start log:" + joinPoint.getSignature().getName());
+    Object object = joinPoint.proceed();
+    System.out.print("end log:" + joinPoint.getSignature().getName());
+    return object;
+  }
+}
+```
+
+- applicationContext.xml配置
+去掉原有信息，添加如下3行
+
+```xml
+<context:component-scan base-package="com.how2java.aspect"/>
+<context:component-scan base-package="com.how2java.service"/>
+```
+扫描包com.how2java.aspect和com.how2java.service，定位业务类和切面类
+
+```xml
+<aop:aspectj-autoproxy/>
+```
+找到被注解了的切面类，进行切面配置
+
+```xml
+  <context:component-scan base-package="com.how2java.aspect"/>
+  <context:component-scan base-package="com.how2java.service"/>
+  <aop:aspectj-autoproxy/>
+```
+
+注解方式测试
+---
+Spring注解方式测试
+
+#### TestSpring
+```java
+package com.how2java.test;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration("classpath:applicationContext.xml")
+public class TestSpring {
+  @Autowired
+  Category c;
+
+  @Test
+  public void test() {
+    System.out.print(c.getName());
+  }
+}
+```
+- 一些解释：
+- 1. @RunWith(SprigJUnit4ClassRunner.class)
+  - 表示这是一个Spring的测试类
+- 2. @ContextConfiguration("classpath:applicationContext.xml")
+  - 定位Spring的配置文件
+- 3. @Autowired
+  - 给这个测试类装配Category对象
+- 4. @Test
+  - 测试逻辑，打印c对象的名称
+
+怎么也不成功，不能理解....
+
+- 总结：
+  - 使用注解需要在xml里面添加相应配置信息
+    - 设值注入使用`<context:annotation-config/>`
+    - 对bean的注解使用``<context:component-scan base-package="com.how2java.pojo" />``
