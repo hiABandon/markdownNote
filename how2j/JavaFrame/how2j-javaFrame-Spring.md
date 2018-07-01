@@ -331,6 +331,13 @@ private String name="category 1";
     - 添加`<context:component-scan base-package="com.how2java.pojo"/>`
     - **@Component("beanId")**
 
+注解 | 简单描述
+--- | ---
+@Component  | 描述Spring中的Bean，泛化的概念
+@Respository  |  标注DAO类成为bean
+@Service  | 标注Service类成为Bean
+@Controller  | 标注控制层的类
+
 AOP Aspect Oriented Program 面向切面编程
 ---
 - 在面向切面编程的思想里，把功能分为**核心业务功能**和**周边功能**

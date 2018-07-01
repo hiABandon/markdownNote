@@ -84,6 +84,13 @@ index.jsp很简单，通过**EL表达式**现实message的内容
 #### 6.访问地址：
 http://127.0.0.1:8080/springmvc/index
 
+#### 7. 原理
+1. 用户访问/index
+2. 根据web.xml中的配置 所有的访问都会经过DispatcherServlet
+3. 根据配置文件springmvc-servlet.xml，访问路径/index会进入IndexController类
+4. 在IndexController中指定跳转到页面index.jsp,并传递message数据
+5. 在index.jsp中显示message信息
+
 视图定位
 ---
 如果代码写成这样`new ModelAndView("index.jsp");`,表示跳转到页面index.jsp
@@ -102,6 +109,7 @@ http://127.0.0.1:8080/springmvc/index
 ```
 其作用是把视图约定在**/WEB-INF/page/*.jsp**这个位置
 
+- 完整xml
 ```xml
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
@@ -149,12 +157,13 @@ public class IndexController implements Controller {
 ```
 
 #### 3.把index.jsp移动到WEB-INF/page目录下
+#### 4.测试
 
 注解方式
 ---
 上述都是讲解使用配置方式进行跳转
 
-本例讲解如何使用注解的方式进行跳转的配置
+本例讲解如何使用**注解的方式**进行跳转的配置
 
 #### 1. 修改IndexController
 - 在类前面加上**@Controller**表示该类是一个控制器
@@ -163,6 +172,13 @@ public class IndexController implements Controller {
 
 ```java
 package controller;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.ModelAndView;
 
 @Controller
 public class IndexController {
@@ -212,3 +228,101 @@ public class IndexController {
 ```
 
 #### 访问http://127.0.0.1:8080/springmvc/index测试
+
+***
+
+接受表单数据
+----
+浏览器提交数据是非常常见的场景，本例演示用户提交产品名称和价格到Spring MVC Spring MVC如何接受数据
+
+#### 1. 创建实体类Product
+```java
+package pojo;
+public class Product {
+  private int id;
+   private String name;
+   private float price;
+   public int getId() {
+       return id;
+   }
+   public void setId(int id) {
+       this.id = id;
+   }
+   public String getName() {
+       return name;
+   }
+   public void setName(String name) {
+       this.name = name;
+   }
+   public float getPrice() {
+       return price;
+   }
+   public void setPrice(float price) {
+       this.price = price;
+   }
+}
+```
+
+#### 2. addProduct.jsp
+- 在**web目录下**（不是WEB-INF下）增加商品的页面addProduct.jsp
+  - **注意**：产品名称input的name要使用**name**,**而不是**product.name
+
+  - addProduct.jsp
+```js
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8" import="java.util.*" isELIgnored="false"%>
+
+<form action="addProduct">
+
+    产品名称 ：<input type="text" name="name" value=""><br />
+    产品价格： <input type="text" name="price" value=""><br />
+
+    <input type="submit" value="增加商品">
+</form>
+```
+
+#### 3. ProductController.java
+控制器ProductController, 准备一个add方法映射/addProduct路径
+
+为add方法准备一个Product参数，用于接收注入
+
+最后跳转到showProduct页面显示用户提交的数据
+
+  - 注：**addProduct.jsp** 提交的name和price会**自动注入**到参数product里
+  - 注：参数product会**默认**被当做**值**加入到**ModelAndView**中，相当于:
+    - `mav.addObject("product", product);`
+
+```java
+package controller;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.ModelAndView;
+
+import pojo.Product;
+
+@Controller
+public class ProductController {
+
+    @RequestMapping("/addProduct")
+    public ModelAndView add(Product product) throws Exception {
+        ModelAndView mav = new ModelAndView("showProduct");
+        return mav;
+    }
+}
+```
+
+#### 4. showProduct.jsp
+在**WEB-INF/page**目录下创建showProduct.jsp
+
+用EL表达式显示用户提条的名称和价格
+
+```js
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8" isELIgnored="false"%>
+
+产品名称： ${product.name}<br>
+产品价格： ${product.price}
+```
