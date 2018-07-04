@@ -49,7 +49,7 @@ public class Category {
 
 #### 3.配置文件mybatis-config.xml
 
-- 在src目录下创建mybatis的主配置文件 **mybatis-config.xml**
+- 在src目录下创建mybatis的**主配置**文件 **mybatis-config.xml**
 - 其作用主要是提供连接数据库用的驱动，数据库名称，编码方式，账号密码等
 ```xml
 <property name="driver" value="com.mysql.jdbc.Driver" />
@@ -66,6 +66,7 @@ public class Category {
 ```
 
 - 映射Category.xml
+- **如果resource**的路径没有填对，会报错，找不到文件
 ```xml
 <mappers>
   <mapper resource="com/how2java/pojo/Category.xml"/>
@@ -110,7 +111,7 @@ PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
 
     <mapper namespace="com.how2java.pojo">
         <select id="listCategory" resultType="Category">
-            select * from   category_     
+            select * from   category_
         </select>
     </mapper>
 ```
@@ -118,8 +119,8 @@ PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
   - 表示命名空间是com.how2java.pojo,在后续调用sql语句的时候会用到它
 - 里面定义了一条sql语句`select *from category_`
   - 这条sql语句用id： **listCategory** 进行标示以供后续代码调用。
-  - **resultType="Category"** 表示返回的数据和Category关联起来
-    - 此处本该使用的是全类名com.how2java.pojo.Category,但是因为上一步配置l别名，所以直接使用Category就可以了
+  - **resultType="Category"** 表示**返回的数据和Category关联起来**
+    - 此处本该使用的是全类名com.how2java.pojo.Category,但是因为上一步配置了别名，所以直接使用Category就可以了
 
 #### 5.测试类TestMybatis
 
@@ -148,7 +149,164 @@ public class TestMybatis {
         List<Category> cs=session.selectList("listCategory");
         for (Category c : cs) {
             System.out.println(c.getName());
-        }         
+        }
     }
 }
+```
+
+#### 6.基本原理
+1. 应用程序找Mybatis要数据
+2. mybatis从数据库中找来数据
+  1. 通过mybatis-config.xml定位哪个数据库
+  2. 通过Category.xml执行对应的select语句
+  3. 基于Category.xml把返回的数据库记录封装在Category对象中
+  4. 把多个Category对象装在一个Category集合中
+3. 返回一个Category集合
+
+***
+
+CRUD
+---
+本建立在上一知识点Mybatis入门的基础上
+
+#### 1.配置文件Category.xml
+首先一次性修改配置文件Category.xml,提供CRUD对应的sql语句。
+- Category.xml
+-
+```
+<?xml version="1.0" encoding="UTF-8">
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+  <mapper namespace="com.how2java.pojo">
+
+  </mapper>
+```
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+    <mapper namespace="com.how2java.pojo">
+        <select id="listCategory" resultType="Category">
+            select * from   category_
+        </select>
+
+        <insert id="addCategory" parameterType="Category">
+          insert into category_ ( name ) values (#{name})
+        </insert>
+
+        <delete id="deleteCategory" parameterType="Category">
+          delete from category_ where id= #{id}
+        </delete>
+
+        <select id="getCategory" parameterType="_int" resultType="Category">
+          select * from category_ where id= #{id}
+        </select>
+
+        <update id="updateCategory" parameterType="Category">
+          update category_ set name=#{name} where id= #{id}
+        </update>
+    </mapper>
+```
+- 每个SQL如何使用将在后续操作里一一讲解
+
+#### 2.增加（进一步封装）
+```java
+import org.apache.ibatis.io.Resources;
+
+public class TestMybatis {
+  public static void main(String[] args) throws IOException {
+    Strng resource = "mybatis-config.xml";
+    InputSteam inputStream = Resources.getResourceAsStream(resource);
+    SqlSessionFactory sqlSessionFactory =  new SqlSessionFactoryBuilder().build(inputStream);
+    SqlSession session = sqlSessionFactory.openSession();
+
+    Category c = new Category();
+    c.setName("新增加的Category");
+    session.insert("addCategory",c);
+
+    listAll(session);
+
+    session.commit();
+    session.close();
+  }
+
+  private static void listAll(SqlSession session) {
+    List<Category> cs = session.selectList("listCategory");
+    for(Category c : cs) {
+      System.out.print(c.getName());
+    }
+  }
+}
+```
+ #### 3.删除
+ 删除id=6的对象
+ ```java
+ Category c =new Category();
+ c.setId(6);
+ session.delete("deleteCategory",c);
+ ```
+
+ deleteCategory对应删除的sql语句
+ ```xml
+ <delete id="deleteCategory" parameterType="Category">
+  delete from category_ where id= #{id}
+ </delete>
+ ```
+
+ #### 4.获取
+ 通过session.selectOne获取id=3的记录
+ ```java
+ Category c = session.selectOne("getCategory",3);
+ ```
+
+ getCategory对应的sql语句：
+ ```xml
+ <select id="getCategory" parameterType="_int" resultType="Category">
+  select * from category_ where id= #{id}
+ </select>
+ ```
+
+ #### 5.修改
+ 通过session.update进行修改
+ ```java
+ session.update("updateCategory",c);
+ ```
+
+ updateCategory对应的sql语句：
+ ```xml
+ <update id="updateCategory" parameterType="Category">
+  update category_ set name= #{name} where id= #{id}
+ </update>
+ ```
+
+#### 6.查询所有
+session.selectList执行查询语句
+```java
+List<Category> cs = session.selectList("listCategory");
+```
+
+listCategory对应的sql语句
+```xml
+<select id="listCategory" resultType="Category">
+  select * from category_
+</select>
+```
+
+更多查询
+---
+
+#### 1.模糊查询
+1. 修改Category.xml，提供listCategoryByName查询语句
+  - `select *from category_ where name like concat('%', #{0}, '%')`
+  - **concat('%',#{0},'%')** 这是mysql的写法
+- 如果是oracle，写法是
+  - `select * from category_ where name like '%'||#{0}||'%'`
+
+2. 运行测试
+```java
+List<Category> cs = session.selectList("listCategoryByName","cat");
 ```
