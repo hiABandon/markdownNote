@@ -11,6 +11,9 @@ Mybatis
 >   - 只需要自己提供SQL语句，其他的工作，如建立连接，Statement,JDBC相关异常处理等等都交给Mybatis。
 >   - 那些重复性的工作Mybatis也给做掉了，开发者只需关注在增删改查等操作层面上，而把技术细节都封装在了我们看不见的地方。
 
+Mybatis基础
+===
+
 入门
 ---
 #### 1.创建数据库等前期准备用于演示
@@ -310,3 +313,434 @@ listCategory对应的sql语句
 ```java
 List<Category> cs = session.selectList("listCategoryByName","cat");
 ```
+
+#### 2.多条件查询
+结合前面的模糊查询，多一个id> 多少的条件
+
+- 1. Category.xml
+```xml
+<select id="listCategoryByIdAndName" parameterType="map" resultType="Category">
+  select * from category_ where id> #{id} and name like concat('%', #{name}, '%')
+</select>
+```
+
+- 2. 测试代码
+因为是多个参数，而selectList方法又只接受一个参数对象，所以需要把多个参数放在Map里，然后把这个Map对象作为参数传递进去
+```java
+import org.apache.ibatis.io.Resources;
+public static void main(String[] args) {
+  String resource = "mybatis-config.xml";
+  InputStream inputStream = Resources.getResourceAsStream(resource);
+  SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+  SqlSession session = sqlSessionFactory.openSession();
+
+  Map<String, Object> params = new HashMap<>();
+  params.put("id",3);
+  params.put("name","cat");
+
+  List<Category> cs = session.selectList("listCategoryByIdAndName",params);
+  for (Category c : cs) {
+    System.out.print(c.getName);
+  }
+
+  session.commit();
+  session.close();
+}
+```
+***
+一对多
+---
+一个分类对应多个产品，基于Mybatis入门教程的知识点
+
+#### 1.准备工作
+1. 分类表不变化，新增加产品表
+```sql
+use how2java;
+create table product_(
+  id int not null auto_increment,
+  name varchar(30) default null,
+  price float default 0,
+  cid int ,
+  primary key (id)
+)auto_increment=1 default charset=utf8;
+```
+
+2. 准备数据
+- 清空category_和product_表
+  - 新增2条分类数据，id分别是1,2
+  - 新增6条产品数据，分别关联上述2条分类数据
+```sql
+use how2java;
+delete from category_;
+insert into category_ values (1, 'category1')
+insert into category_ values (2, 'category2')
+delete from product_;
+insert into product_ values(1, 'producta', 88.88, 1);
+insert into product_ values(2, 'productb', 88.88, 1);
+insert into product_ values(3, 'productc', 88.88, 1);
+insert into product_ values(4, 'productx', 88.88, 2);
+insert into product_ values(5, 'producty', 88.88, 2);
+insert into product_ values(6, 'productz', 88.88, 2);
+```
+
+3. Product实体类(java)
+普通的一个pojo
+```java
+package com.how2java.pojo;
+
+public class Product {
+  private int id;
+  private String name;
+  private float price;
+  // getter和setter方法
+  public String toString() {}
+}
+```
+
+4. 修改Category实体类
+```java
+public class category {
+  private int id;
+  private String name;
+  List<Product> products;
+  // getter和setter方法
+  public String toString(){}
+}
+```
+5. 暂时不需要Product.xml
+  - 本例演示通过分类对产品的一对多，暂时无需Prouduct.xml
+
+6. 修改Category.xml
+- 通过left join关联查新，对Category和Product表进行关联查询。
+- 这里不是使用resultType而是使用**resultMap**,通过resultMap把数据取出来放在**对应的**对象属性里
+- **注**：Category的id字段和Product的id字段同名，Mybatis不知道谁是谁的，所以需要通过取别名cid,pid来区分。name字段同理
+
+-Category.xml
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org/dtd/mybatis-3-mapper.dtd"
+  "http://mybatis.org/dtd/mybatis-3-mapper/dtd">
+<mapper namespace="com.how2java.pojo">
+  <resultMap type="Category" id="categoryBean">
+    <id column="cid" property="id"/>
+    <result column="cname" property="name"/>
+    <!-- 一对多的关系 -->
+    <!-- property：指的是集合属性的值，ofType:指的是集合中元素的类型 -->
+    <collection property="products" ofType="Product">
+      <id column="pid" property="id"/>
+      <result column="pname" property="name"/>
+      <result column="price" property="price"/>
+    </collection>
+  </resultMap>
+
+  <!-- 关联查询分类和产品表 -->
+  <select id="listCategory" resultMap="categoryBean">
+    select c.*, p.*, c.id 'cid', p.id 'pid', c.name 'cname', p.name 'pname' from category_c left join product_p on c.id = p.cid
+  </select>
+</mapper>
+```
+- 在上述配置中
+  - `<mapper>`用来配置类和sql语句对应关系，所谓ORM
+    - `<resultMap>`用来配置类属性和sql字段的对应关系
+      - `<id column="cid" property="id">`
+        - cid（sql语句中category_的id字段别名）对应父级`<resultMap type="Category" ... >`Category的id属性；需要一致。
+    - `<collection property="products" ofType="Product">`
+      - 指名为products的属性的类型是Product类
+      - `<id column="pid" property="id">`
+        - pid对应sql语句里Product_ id字段的别名，需要一致
+      - `<result column="pname" property="name">`
+        - pname对应sqil语句里Product_ name字段的别名，需要一致
+
+#### 2.测试代码
+```java
+public class TestMybatis {
+  public static void main(String[] args) {
+    String resource = "mybatis-config.xml";
+    InputStream inputStream = Resources.getResourceAsStream(resource);
+    SqlSessionFactory sqlSessionFactory = new SqlSessionoFactoryBuilder().build(inputStream);
+    SqlSession session = sqlSessionFactory.openSession();
+
+    List<Category> cs = session.selectList("listCategory");
+    for(Category c : cs) {
+      System.out.print(c);
+      List<Product> ps = c.getProducts();
+      for(Product p : ps) {
+        System.out.print("\t" + p);
+      }
+    }
+
+    session.commit();
+    session.close();
+  }
+}
+```
+
+***
+
+多对一
+---
+
+#### 1.准备工作
+1. 为Product增加category属性
+2. 提供Product.xml
+  - 通过listProduct配置关联查询的sql语句。
+  - 然后通过resultMap,进行字段和属性的对应。
+  - 使用association进行多对一关系关联，指定表字段名称与对象属性名称的一一对应关系
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+    <mapper namespace="com.how2java.pojo">
+      <resutlMap type="Product" id="productBean">
+        <id column="pid" property="id"/>
+        <result column="pname" property="name"/>
+        <result column="price" property="price"/>
+      <!-- 多对一的关系
+      property指的是属性名称，javaType指的是属性的类型 -->
+        <association property="category" javaType="Category">
+          <id column="cid" property="id"/>
+          <result column="cname" property="name"/>
+        </association>
+      </resultMap>
+
+      <select id="listProduct" resultMap="productBean">
+        select c.*, p.*, c.id 'cid', p.id 'pid', c.name 'cname', p.name 'pname' form category_ c left join product_ p on c.id = p.cid
+      </select>
+    </mappper>
+```
+
+3. 在mybatis-config.xml中增加对于Product.xml的映射
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <typeAliases>
+      <package name="com.how2java.pojo"/>
+    </typeAliases>
+    <environments default="development">
+        <environment id="development">
+            <transactionManager type="JDBC"/>
+            <dataSource type="POOLED">
+            <property name="driver" value="com.mysql.jdbc.Driver"/>
+            <property name="url" value="jdbc:mysql://localhost:3306/how2java?characterEncoding=UTF-8"/>
+            <property name="username" value="root"/>
+            <property name="password" value="admin"/>
+            </dataSource>
+        </environment>
+    </environments>
+    <mappers>
+        <mapper resource="com/how2java/pojo/Category.xml"/>
+        <mapper resource="com/how2java/pojo/Product.xml"/>
+    </mappers>
+</configuration>
+```
+
+#### 测试
+```java
+package com.how2java;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+
+import com.how2java.pojo.Product;
+
+public class TestMybatis {
+
+    public static void main(String[] args) throws IOException {
+        String resource = "mybatis-config.xml";
+        InputStream inputStream = Resources.getResourceAsStream(resource);
+        SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+        SqlSession session = sqlSessionFactory.openSession();
+
+        List<Product> ps = session.selectList("listProduct");
+        for (Product p : ps) {
+            System.out.println(p+" 对应的分类是 \t "+ p.getCategory());
+        }
+
+        session.commit();
+        session.close();
+    }
+}
+```
+***
+
+多对多
+---
+
+***
+
+动态SQL
+===
+
+if
+---
+
+where
+---
+
+choose
+---
+
+foreach
+---
+
+bind
+---
+
+***
+
+注解
+===
+CRUD
+---
+本例把**XML方式的CRUD**修改为注解方式
+
+#### 1.Mapper接口
+- 新增加接口CategoryMapper，并在接口中声明的方法上，加上注解
+- 对比**配置文件Category.xml**，其实就是把SQL语句从XML挪到了注解上来
+
+```java
+package com.how2java.mapper;
+import java.util.List;
+import org.apache.ibatis.annotations.Delete;
+import ……Insert ……Select ……Update;
+import com.how2java.pojo.Category;
+
+public interface CategoryMapper {
+  @Insert("insert into category_ (name) values (#{name}) ")
+  public int add(Category category);
+
+  @Delete("delete form category_ where id = #{id}")
+  public void delete(int id);
+
+  @Select("select * from category_ where id= #{id}")
+  public Category get(int id);
+
+  @Update("update category_ set name=#{name} where id=#{id}")
+  public int update(Category category);
+
+  @Select("select * from category_")
+  public List<Category> list();
+}
+```
+
+#### 2.修改mybatis-config.xml
+在第22行增加对CategoryMapper映射，原来的Category.xml是否保留随意
+`<mapper calss="com.how2java.mapper.CategoryMapper"/>`
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <typeAliases>
+      <package name="com.how2java.pojo"/>
+    </typeAliases>
+    <environments default="development">
+        <environment id="development">
+            <transactionManager type="JDBC"/>
+            <dataSource type="POOLED">
+            <property name="driver" value="com.mysql.jdbc.Driver"/>
+            <property name="url" value="jdbc:mysql://localhost:3306/how2java?characterEncoding=UTF-8"/>
+            <property name="username" value="root"/>
+            <property name="password" value="admin"/>
+            </dataSource>
+        </environment>
+    </environments>
+    <mappers>
+        <mapper resource="com/how2java/pojo/Category.xml"/>
+        <mapper class="com.how2java.mapper.CategoryMapper"/>
+    </mappers>
+</configuration>
+```
+
+#### 3. 测试类
+```java
+package com.how2java;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+
+import com.how2java.mapper.CategoryMapper;
+import com.how2java.pojo.Category;
+
+public class TestMybatis {
+
+    public static void main(String[] args) throws IOException {
+        String resource = "mybatis-config.xml";
+        InputStream inputStream = Resources.getResourceAsStream(resource);
+        SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+        SqlSession session = sqlSessionFactory.openSession();
+        CategoryMapper mapper = session.getMapper(CategoryMapper.class);
+
+//        add(mapper);
+//        delete(mapper);
+//        get(mapper);
+//        update(mapper);
+        listAll(mapper);
+
+        session.commit();
+        session.close();
+
+    }
+
+    private static void update(CategoryMapper mapper) {
+        Category c= mapper.get(8);
+        c.setName("修改了的Category名稱");
+        mapper.update(c);
+        listAll(mapper);
+    }
+
+    private static void get(CategoryMapper mapper) {
+        Category c= mapper.get(8);
+        System.out.println(c.getName());
+    }
+
+    private static void delete(CategoryMapper mapper) {
+        mapper.delete(2);
+        listAll(mapper);
+    }
+
+    private static void add(CategoryMapper mapper) {
+        Category c = new Category();
+        c.setName("新增加的Category");
+        mapper.add(c);
+        listAll(mapper);
+    }
+
+    private static void listAll(CategoryMapper mapper) {
+        List<Category> cs = mapper.list();
+        for (Category c : cs) {
+            System.out.println(c.getName());
+        }
+    }
+}
+```
+
+一对多
+----
+
+多对一
+---
+
+多对多
+---
+
+动态SQL语句
+---
